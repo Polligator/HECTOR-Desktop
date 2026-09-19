@@ -1,0 +1,177 @@
+name: Build installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      hector_version:
+        description: hector-sc version to bundle
+        required: true
+        default: "1.0.2"
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS Apple Silicon
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Verify architecture
+        run: test "$(uname -m)" = "arm64"
+
+      - name: Install build dependencies
+        env:
+          HECTOR_VERSION: ${{ inputs.hector_version }}
+        run: |
+          python -m pip install --upgrade pip build wheel
+          python -m build --wheel
+          python -m pip install pyinstaller PySide6 pyqtgraph "hector-sc==$HECTOR_VERSION"
+          python -m pip install --force-reinstall --no-deps dist/hector_desktop-*.whl
+
+      - name: Install compatible MLX Metal library
+        shell: bash
+        run: |
+          mlx_version=$(python -m pip show mlx-metal | awk '/^Version:/ {print $2}')
+          test -n "$mlx_version"
+          mkdir -p "$RUNNER_TEMP/mlx-wheel"
+          python -m pip download --no-deps \
+            --platform macosx_14_0_arm64 \
+            --python-version 3.12 \
+            --only-binary :all: \
+            "mlx-metal==$mlx_version" \
+            --dest "$RUNNER_TEMP/mlx-wheel"
+          python -m pip install --force-reinstall --no-deps "$RUNNER_TEMP"/mlx-wheel/mlx_metal-*.whl
+
+      - name: Build application and DMG
+        shell: bash
+        run: |
+          python -m PyInstaller --clean hector_desktop.spec --noconfirm \
+            --workpath "$RUNNER_TEMP/hector-build" \
+            --distpath "$RUNNER_TEMP/hector-dist"
+          version=$(python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          mkdir -p release
+          hdiutil create \
+            -volname "HECTOR Desktop" \
+            -srcfolder "$RUNNER_TEMP/hector-dist/HECTOR Desktop.app" \
+            -ov -format UDZO \
+            "release/HECTOR-Desktop-${version}-macOS.dmg"
+
+      - name: Check bundle metadata
+        env:
+          BUNDLE_ROOT: ${{ runner.temp }}/hector-dist/HECTOR Desktop.app
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import sys
+
+          root = pathlib.Path(os.environ["BUNDLE_ROOT"])
+          findings = []
+          for path in root.rglob("*"):
+              if not path.is_file():
+                  continue
+              if path.name.lower() == "direct_url.json":
+                  findings.append(f"editable-install metadata: {path}")
+              if path.name == "METADATA" and any(
+                  part.startswith(("hector_sc-", "hector_desktop-"))
+                  for part in path.parts
+              ):
+                  text = path.read_text(encoding="utf-8", errors="replace")
+                  for line in text.splitlines():
+                      field, separator, value = line.partition(":")
+                      if separator and field.lower() in {
+                          "author", "author-email", "maintainer", "maintainer-email"
+                      } and value.strip():
+                          findings.append(f"identity metadata in {path}: {field}")
+          if findings:
+              print("\n".join(findings))
+              sys.exit("Disallowed build metadata found")
+          print("Metadata scan passed")
+          PY
+          codesign --verify --deep --strict "$BUNDLE_ROOT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HECTOR-Desktop-macOS
+          path: release/*.dmg
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build dependencies
+        shell: pwsh
+        env:
+          HECTOR_VERSION: ${{ inputs.hector_version }}
+        run: |
+          python -m pip install --upgrade pip build wheel
+          python -m build --wheel
+          python -m pip install pyinstaller PySide6 pyqtgraph "hector-sc==$env:HECTOR_VERSION"
+          python -m pip install --force-reinstall --no-deps (Get-Item dist\hector_desktop-*.whl)
+
+      - name: Build application
+        shell: pwsh
+        run: |
+          python -m PyInstaller --clean hector_desktop.spec --noconfirm
+
+      - name: Check bundle metadata
+        shell: pwsh
+        env:
+          BUNDLE_ROOT: ${{ github.workspace }}\dist\HECTOR Desktop
+        run: |
+          @'
+          import os
+          import pathlib
+          import sys
+
+          root = pathlib.Path(os.environ["BUNDLE_ROOT"])
+          findings = []
+          for path in root.rglob("*"):
+              if not path.is_file():
+                  continue
+              if path.name.lower() == "direct_url.json":
+                  findings.append(f"editable-install metadata: {path}")
+              if path.name == "METADATA" and any(
+                  part.startswith(("hector_sc-", "hector_desktop-"))
+                  for part in path.parts
+              ):
+                  text = path.read_text(encoding="utf-8", errors="replace")
+                  for line in text.splitlines():
+                      field, separator, value = line.partition(":")
+                      if separator and field.lower() in {
+                          "author", "author-email", "maintainer", "maintainer-email"
+                      } and value.strip():
+                          findings.append(f"identity metadata in {path}: {field}")
+          if findings:
+              print("\n".join(findings))
+              sys.exit("Disallowed build metadata found")
+          print("Metadata scan passed")
+          '@ | python -
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])"
+          New-Item -ItemType Directory -Force release | Out-Null
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" installer.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HECTOR-Desktop-Windows
+          path: release/*-Setup.exe
+          if-no-files-found: error
