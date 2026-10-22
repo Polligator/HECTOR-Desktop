@@ -1,0 +1,28 @@
+# Build environment for HECTOR Desktop on macOS.
+
+name: sc
+channels:
+  - conda-forge
+  - nodefaults
+
+dependencies:
+  - python=3.12
+
+  - scanpy
+  - anndata
+  - h5py
+  - scikit-learn
+  - matplotlib
+  - tqdm
+  - networkx
+  - huggingface_hub
+  - pyarrow
+
+  - pip
+
+  - pip:
+      - mlx>=0.20; sys_platform == 'darwin'
+      - pynndescent>=0.5
+      - PySide6>=6.6
+      - pyqtgraph>=0.13
+      - pyinstaller>=6.0

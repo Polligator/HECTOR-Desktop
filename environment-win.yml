@@ -1,0 +1,32 @@
+# Build environment for HECTOR Desktop on Windows.
+
+name: sc
+channels:
+  - conda-forge
+  - nodefaults
+
+dependencies:
+  - python=3.12
+  - pip
+
+  - pip:
+      - scanpy
+      - anndata
+      - h5py
+      - scikit-learn
+      - matplotlib
+      - numpy
+      - scipy
+      - pandas
+      - pyarrow
+      - tqdm
+      - networkx
+      - huggingface_hub
+
+      - psutil
+
+      - tensorflow>=2.18,<2.22
+
+      - PySide6>=6.6
+      - pyqtgraph>=0.13
+      - pyinstaller>=6.0
