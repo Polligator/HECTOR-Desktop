@@ -3,7 +3,7 @@
 https://github.com/Polligator/HECTOR-Desktop/releases
 
 
-HECTOR Desktop is a graphical application for single-cell annotation. It loads data, predicts cell types, and creates interactive embeddings in one workflow.
+HECTOR Desktop is a graphical application for single-cell annotation. It loads data, predicts cell types, and creates interactive embeddings in one workflow. It covers only the core annotation workflow of the HECTOR Python package, for quick analysis of your data, not every feature of the package.
 
 ![HECTOR Desktop: load data, run prediction, generate UMAP](docs/hector-demo.gif)
 
