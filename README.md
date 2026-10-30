@@ -23,11 +23,13 @@ This creates an exception for this app; do not disable Gatekeeper globally. If m
 ## Use
 
 1. Open an `.h5ad` file or a Cell Ranger output folder. The app also detects compatible OCM outputs.
-2. only support human and mouse, model should be selected automatically based on the data, then run prediction. The appropriate model downloads automatically on first use.
+2. Run prediction. Only human and mouse data are supported; the app selects the matching model from your data and downloads it automatically on first use.
 3. Explore UMAP or t-SNE results, export plots, and save the annotated `.h5ad` file.
 
 HECTOR uses Ensembl gene identifiers. When needed, the app can map gene symbols to Ensembl IDs before prediction.
 
 On Apple silicon Macs, prediction and UMAP use Metal acceleration. Windows builds run on the CPU, which is noticeably slower. Times vary with hardware and dataset size.
 
-For scripted or advanced workflows, use the `hector` Python package.
+For scripted or advanced workflows, use the [HECTOR](https://github.com/Polligator/HECTOR) Python package. Install it with `pip install hector-sc`. Tutorials are at <https://polligator.github.io/HECTOR/>.
+
+For species other than human and mouse, try [HECTOR Pro](https://github.com/Polligator/HECTOR-Pro), an experimental multi-species model.
